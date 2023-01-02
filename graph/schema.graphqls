@@ -1,0 +1,21 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+type Block {
+  number: Int!
+  transactions: [Transaction!]!
+}
+
+type Transaction {
+  hash: String!
+  value: String!
+  to: String!
+  gas: Int!
+  data: String!
+}
+
+type Query {
+  blocks: [Block!]!
+}
+
