@@ -54,10 +54,13 @@ func (f *Fetcher) Start() {
 
 			for _, tx := range recentBlock.Transactions() {
 				t := &model.Transaction{
-					Hash:  tx.Hash().Hex(),
-					Value: tx.Value().String(),
-					Gas:   int(tx.Gas()),
-					Data:  string(tx.Data()),
+					Hash:     tx.Hash().Hex(),
+					Nonce:    int(tx.Nonce()),
+					Value:    tx.Value().String(),
+					GasPrice: int(tx.GasPrice().Int64()),
+					Gas:      int(tx.Gas()),
+					Type:     int(tx.Type()),
+					Data:     string(tx.Data()),
 				}
 				if tx.To() != nil {
 					t.To = tx.To().Hex()

@@ -9,9 +9,12 @@ type Block {
 
 type Transaction {
   hash: String!
+  nonce: Int!
   value: String!
-  to: String!
+  gas_price: Int!
   gas: Int!
+  type: Int!
+  to: String!
   data: String!
 }
 

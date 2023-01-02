@@ -54,11 +54,14 @@ type ComplexityRoot struct {
 	}
 
 	Transaction struct {
-		Data  func(childComplexity int) int
-		Gas   func(childComplexity int) int
-		Hash  func(childComplexity int) int
-		To    func(childComplexity int) int
-		Value func(childComplexity int) int
+		Data     func(childComplexity int) int
+		Gas      func(childComplexity int) int
+		GasPrice func(childComplexity int) int
+		Hash     func(childComplexity int) int
+		Nonce    func(childComplexity int) int
+		To       func(childComplexity int) int
+		Type     func(childComplexity int) int
+		Value    func(childComplexity int) int
 	}
 }
 
@@ -116,6 +119,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Transaction.Gas(childComplexity), true
 
+	case "Transaction.gas_price":
+		if e.complexity.Transaction.GasPrice == nil {
+			break
+		}
+
+		return e.complexity.Transaction.GasPrice(childComplexity), true
+
 	case "Transaction.hash":
 		if e.complexity.Transaction.Hash == nil {
 			break
@@ -123,12 +133,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Transaction.Hash(childComplexity), true
 
+	case "Transaction.nonce":
+		if e.complexity.Transaction.Nonce == nil {
+			break
+		}
+
+		return e.complexity.Transaction.Nonce(childComplexity), true
+
 	case "Transaction.to":
 		if e.complexity.Transaction.To == nil {
 			break
 		}
 
 		return e.complexity.Transaction.To(childComplexity), true
+
+	case "Transaction.type":
+		if e.complexity.Transaction.Type == nil {
+			break
+		}
+
+		return e.complexity.Transaction.Type(childComplexity), true
 
 	case "Transaction.value":
 		if e.complexity.Transaction.Value == nil {
@@ -346,12 +370,18 @@ func (ec *executionContext) fieldContext_Block_transactions(ctx context.Context,
 			switch field.Name {
 			case "hash":
 				return ec.fieldContext_Transaction_hash(ctx, field)
+			case "nonce":
+				return ec.fieldContext_Transaction_nonce(ctx, field)
 			case "value":
 				return ec.fieldContext_Transaction_value(ctx, field)
-			case "to":
-				return ec.fieldContext_Transaction_to(ctx, field)
+			case "gas_price":
+				return ec.fieldContext_Transaction_gas_price(ctx, field)
 			case "gas":
 				return ec.fieldContext_Transaction_gas(ctx, field)
+			case "type":
+				return ec.fieldContext_Transaction_type(ctx, field)
+			case "to":
+				return ec.fieldContext_Transaction_to(ctx, field)
 			case "data":
 				return ec.fieldContext_Transaction_data(ctx, field)
 			}
@@ -584,6 +614,50 @@ func (ec *executionContext) fieldContext_Transaction_hash(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Transaction_nonce(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_nonce(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Nonce, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transaction_nonce(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transaction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Transaction_value(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Transaction_value(ctx, field)
 	if err != nil {
@@ -628,8 +702,8 @@ func (ec *executionContext) fieldContext_Transaction_value(ctx context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Transaction_to(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Transaction_to(ctx, field)
+func (ec *executionContext) _Transaction_gas_price(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_gas_price(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -642,7 +716,7 @@ func (ec *executionContext) _Transaction_to(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.To, nil
+		return obj.GasPrice, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -654,19 +728,19 @@ func (ec *executionContext) _Transaction_to(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(int)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Transaction_to(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Transaction_gas_price(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Transaction",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -711,6 +785,94 @@ func (ec *executionContext) fieldContext_Transaction_gas(ctx context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transaction_type(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_type(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Type, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transaction_type(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transaction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transaction_to(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_to(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.To, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transaction_to(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transaction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -2658,6 +2820,13 @@ func (ec *executionContext) _Transaction(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "nonce":
+
+			out.Values[i] = ec._Transaction_nonce(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "value":
 
 			out.Values[i] = ec._Transaction_value(ctx, field, obj)
@@ -2665,9 +2834,9 @@ func (ec *executionContext) _Transaction(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "to":
+		case "gas_price":
 
-			out.Values[i] = ec._Transaction_to(ctx, field, obj)
+			out.Values[i] = ec._Transaction_gas_price(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -2675,6 +2844,20 @@ func (ec *executionContext) _Transaction(ctx context.Context, sel ast.SelectionS
 		case "gas":
 
 			out.Values[i] = ec._Transaction_gas(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "type":
+
+			out.Values[i] = ec._Transaction_type(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "to":
+
+			out.Values[i] = ec._Transaction_to(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++

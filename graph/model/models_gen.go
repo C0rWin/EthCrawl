@@ -8,9 +8,12 @@ type Block struct {
 }
 
 type Transaction struct {
-	Hash  string `json:"hash"`
-	Value string `json:"value"`
-	To    string `json:"to"`
-	Gas   int    `json:"gas"`
-	Data  string `json:"data"`
+	Hash     string `json:"hash"`
+	Nonce    int    `json:"nonce"`
+	Value    string `json:"value"`
+	GasPrice int    `json:"gas_price"`
+	Gas      int    `json:"gas"`
+	Type     int    `json:"type"`
+	To       string `json:"to"`
+	Data     string `json:"data"`
 }
