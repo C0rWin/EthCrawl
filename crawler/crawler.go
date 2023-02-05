@@ -2,19 +2,20 @@ package crawler
 
 import (
 	"context"
-	"encoding/json"
 	"ethparser/graph/model"
 	"fmt"
-	"os"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/asm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type Fetcher struct {
-	blocks []*model.Block
-	mutex  sync.RWMutex
+	blocks     []*model.Block
+	mutex      sync.RWMutex
+	NetworkURI string
 }
 
 func (f *Fetcher) Blocks() []*model.Block {
@@ -23,9 +24,8 @@ func (f *Fetcher) Blocks() []*model.Block {
 	return f.blocks
 }
 
-func (f *Fetcher) Start() {
-	network := fmt.Sprintf("wss://mainnet.infura.io/ws/v3/%s", os.Args[1])
-	client, err := ethclient.Dial(network)
+func (f *Fetcher) Start(ctx context.Context) {
+	client, err := ethclient.Dial(f.NetworkURI)
 	if err != nil {
 		panic(err)
 	}
@@ -38,6 +38,9 @@ func (f *Fetcher) Start() {
 
 	for {
 		select {
+		case <-ctx.Done():
+			fmt.Println("Stop fetching blocks")
+			return
 		case err := <-sub.Err():
 			panic(err)
 		case h := <-headers:
@@ -65,16 +68,39 @@ func (f *Fetcher) Start() {
 				if tx.To() != nil {
 					t.To = tx.To().Hex()
 				}
+				signer := types.NewEIP155Signer(tx.ChainId())
+				senderAddress, err := signer.Sender(tx)
+				if err == nil {
+					t.From = senderAddress.Hex()
+				}
 				b.Transactions = append(b.Transactions, t)
+
+				receipt, err := client.TransactionReceipt(context.Background(), tx.Hash())
+				if err != nil {
+					fmt.Println("ALERT: failed to receive transaction receipt, err", err)
+					continue
+				}
+				if receipt == nil || receipt.ContractAddress == (common.Address{}) {
+					continue
+				}
+
+				contractAddress := receipt.ContractAddress
+				code, err := client.CodeAt(context.Background(), contractAddress, nil)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				fmt.Println("Bytecode:", code)
+
+				contractText, err := asm.Disassemble(code)
+				if err != nil {
+					fmt.Println("ALERT: Failed to decompile contract code, error", err)
+					continue
+				}
+				fmt.Println("Smart contract:", contractText)
 			}
 
 			f.blocks = append(f.blocks, b)
-
-			blockJson, err := json.MarshalIndent(b, "", "\t")
-			if err != nil {
-				fmt.Println("Failed to marshal into JSON format, error", err)
-			}
-			fmt.Println(string(blockJson))
 		}
 	}
 
