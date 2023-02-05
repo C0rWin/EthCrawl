@@ -7,6 +7,12 @@ type Block struct {
 	Transactions []*Transaction `json:"transactions"`
 }
 
+type BlockFilter struct {
+	Or     []*BlockFilter `json:"OR"`
+	And    []*BlockFilter `json:"AND"`
+	Number *int           `json:"number"`
+}
+
 type Transaction struct {
 	Hash     string `json:"hash"`
 	Nonce    int    `json:"nonce"`
@@ -15,5 +21,6 @@ type Transaction struct {
 	Gas      int    `json:"gas"`
 	Type     int    `json:"type"`
 	To       string `json:"to"`
+	From     string `json:"from"`
 	Data     string `json:"data"`
 }

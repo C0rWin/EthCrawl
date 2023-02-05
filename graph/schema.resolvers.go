@@ -10,8 +10,19 @@ import (
 )
 
 // Blocks is the resolver for the blocks field.
-func (r *queryResolver) Blocks(ctx context.Context) ([]*model.Block, error) {
-	return r.BlockFetcher.Blocks(), nil
+func (r *queryResolver) Blocks(ctx context.Context, filter *model.BlockFilter) ([]*model.Block, error) {
+	if filter == nil {
+		return r.BlockFetcher.Blocks(), nil
+	}
+
+	for _, b := range r.BlockFetcher.Blocks() {
+		if b.Number == *filter.Number {
+			return []*model.Block{
+				b,
+			}, nil
+		}
+	}
+	return nil, nil
 }
 
 // Query returns QueryResolver implementation.

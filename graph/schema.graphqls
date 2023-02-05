@@ -15,10 +15,17 @@ type Transaction {
   gas: Int!
   type: Int!
   to: String!
+  from: String!
   data: String!
 }
 
 type Query {
-  blocks: [Block!]!
+  blocks(filter: BlockFilter): [Block!]!
+}
+
+input BlockFilter {
+  OR: [BlockFilter!]
+  AND: [BlockFilter!]
+  number: Int
 }
 

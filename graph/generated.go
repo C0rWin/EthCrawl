@@ -50,11 +50,12 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Blocks func(childComplexity int) int
+		Blocks func(childComplexity int, filter *model.BlockFilter) int
 	}
 
 	Transaction struct {
 		Data     func(childComplexity int) int
+		From     func(childComplexity int) int
 		Gas      func(childComplexity int) int
 		GasPrice func(childComplexity int) int
 		Hash     func(childComplexity int) int
@@ -66,7 +67,7 @@ type ComplexityRoot struct {
 }
 
 type QueryResolver interface {
-	Blocks(ctx context.Context) ([]*model.Block, error)
+	Blocks(ctx context.Context, filter *model.BlockFilter) ([]*model.Block, error)
 }
 
 type executableSchema struct {
@@ -103,7 +104,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.Blocks(childComplexity), true
+		args, err := ec.field_Query_blocks_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Blocks(childComplexity, args["filter"].(*model.BlockFilter)), true
 
 	case "Transaction.data":
 		if e.complexity.Transaction.Data == nil {
@@ -111,6 +117,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Transaction.Data(childComplexity), true
+
+	case "Transaction.from":
+		if e.complexity.Transaction.From == nil {
+			break
+		}
+
+		return e.complexity.Transaction.From(childComplexity), true
 
 	case "Transaction.gas":
 		if e.complexity.Transaction.Gas == nil {
@@ -168,7 +181,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputBlockFilter,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -244,6 +259,21 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_blocks_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *model.BlockFilter
+	if tmp, ok := rawArgs["filter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+		arg0, err = ec.unmarshalOBlockFilter2ᚖethparserᚋgraphᚋmodelᚐBlockFilter(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["filter"] = arg0
 	return args, nil
 }
 
@@ -382,6 +412,8 @@ func (ec *executionContext) fieldContext_Block_transactions(ctx context.Context,
 				return ec.fieldContext_Transaction_type(ctx, field)
 			case "to":
 				return ec.fieldContext_Transaction_to(ctx, field)
+			case "from":
+				return ec.fieldContext_Transaction_from(ctx, field)
 			case "data":
 				return ec.fieldContext_Transaction_data(ctx, field)
 			}
@@ -405,7 +437,7 @@ func (ec *executionContext) _Query_blocks(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Blocks(rctx)
+		return ec.resolvers.Query().Blocks(rctx, fc.Args["filter"].(*model.BlockFilter))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -437,6 +469,17 @@ func (ec *executionContext) fieldContext_Query_blocks(ctx context.Context, field
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Block", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_blocks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -866,6 +909,50 @@ func (ec *executionContext) _Transaction_to(ctx context.Context, field graphql.C
 }
 
 func (ec *executionContext) fieldContext_Transaction_to(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transaction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transaction_from(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_from(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.From, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transaction_from(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Transaction",
 		Field:      field,
@@ -2695,6 +2782,50 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputBlockFilter(ctx context.Context, obj interface{}) (model.BlockFilter, error) {
+	var it model.BlockFilter
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"OR", "AND", "number"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "OR":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("OR"))
+			it.Or, err = ec.unmarshalOBlockFilter2ᚕᚖethparserᚋgraphᚋmodelᚐBlockFilterᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "AND":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("AND"))
+			it.And, err = ec.unmarshalOBlockFilter2ᚕᚖethparserᚋgraphᚋmodelᚐBlockFilterᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "number":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("number"))
+			it.Number, err = ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2858,6 +2989,13 @@ func (ec *executionContext) _Transaction(ctx context.Context, sel ast.SelectionS
 		case "to":
 
 			out.Values[i] = ec._Transaction_to(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "from":
+
+			out.Values[i] = ec._Transaction_from(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -3252,6 +3390,11 @@ func (ec *executionContext) marshalNBlock2ᚖethparserᚋgraphᚋmodelᚐBlock(c
 	return ec._Block(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNBlockFilter2ᚖethparserᚋgraphᚋmodelᚐBlockFilter(ctx context.Context, v interface{}) (*model.BlockFilter, error) {
+	res, err := ec.unmarshalInputBlockFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -3604,6 +3747,34 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalOBlockFilter2ᚕᚖethparserᚋgraphᚋmodelᚐBlockFilterᚄ(ctx context.Context, v interface{}) ([]*model.BlockFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*model.BlockFilter, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNBlockFilter2ᚖethparserᚋgraphᚋmodelᚐBlockFilter(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOBlockFilter2ᚖethparserᚋgraphᚋmodelᚐBlockFilter(ctx context.Context, v interface{}) (*model.BlockFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputBlockFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -3627,6 +3798,22 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalInt(*v)
 	return res
 }
 

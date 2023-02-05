@@ -1,6 +1,8 @@
 package graph
 
-import "ethparser/crawler"
+import (
+	"ethparser/crawler"
+)
 
 // This file will not be regenerated automatically.
 //
