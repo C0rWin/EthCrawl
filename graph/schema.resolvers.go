@@ -7,12 +7,14 @@ package graph
 import (
 	"context"
 	"ethparser/graph/model"
+	"fmt"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Blocks is the resolver for the blocks field.
 func (r *queryResolver) Blocks(ctx context.Context, filter *model.BlockFilter) ([]*model.Block, error) {
-	cursor, err := r.BlockFetcher.Collection("blocks").Find(ctx, nil)
-	defer cursor.Close(ctx)
+	cursor, err := r.BlockFetcher.Collection("blocks").Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +25,9 @@ func (r *queryResolver) Blocks(ctx context.Context, filter *model.BlockFilter) (
 		blocks = append(blocks, block)
 	}
 
+	if err := cursor.Close(ctx); err != nil {
+		fmt.Println("failed to close mongodb cursor")
+	}
 	return blocks, nil
 }
 
