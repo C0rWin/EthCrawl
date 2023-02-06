@@ -14,13 +14,14 @@ type BlockFilter struct {
 }
 
 type Transaction struct {
-	Hash     string `json:"hash"`
-	Nonce    int    `json:"nonce"`
-	Value    string `json:"value"`
-	GasPrice int    `json:"gas_price"`
-	Gas      int    `json:"gas"`
-	Type     int    `json:"type"`
-	To       string `json:"to"`
-	From     string `json:"from"`
-	Data     string `json:"data"`
+	Hash            string `json:"hash"`
+	Nonce           int    `json:"nonce"`
+	Value           string `json:"value"`
+	GasPrice        int    `json:"gas_price"`
+	Gas             int    `json:"gas"`
+	Type            int    `json:"type"`
+	To              string `json:"to"`
+	From            string `json:"from"`
+	Data            string `json:"data"`
+	ContractAddress string `json:"contract_address"`
 }

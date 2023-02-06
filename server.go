@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"ethparser/crawler"
 	"ethparser/graph"
 	"fmt"
 	"log"
@@ -15,6 +14,8 @@ import (
 	// _ "github.com/99designs/gqlgen"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const defaultPort = "8080"
@@ -29,9 +30,6 @@ func main() {
 		port = defaultPort
 	}
 
-	fetcher := &crawler.Fetcher{
-		NetworkURI: fmt.Sprintf("wss://mainnet.infura.io/ws/v3/%s", os.Args[1]),
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		interruptChannel := make(chan os.Signal, 1)
@@ -40,11 +38,23 @@ func main() {
 		fmt.Println("Received interrupt, exiting...")
 		cancel()
 	}()
-	go fetcher.Start(ctx)
 
+	client, err := mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", os.Args[1])))
+	if err != nil {
+		fmt.Println("Failed to create MongoDB instance, erorr", err)
+		os.Exit(-1)
+	}
+
+	err = client.Connect(ctx)
+	if err != nil {
+		fmt.Println("Failed to get connected to the MongoDB instance, error", err)
+		os.Exit(-1)
+	}
+
+	defer client.Disconnect(ctx)
 	handler := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
-			BlockFetcher: fetcher,
+			BlockFetcher: *client.Database("BlocksDB"),
 		},
 	}))
 

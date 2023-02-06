@@ -11,18 +11,19 @@ import (
 
 // Blocks is the resolver for the blocks field.
 func (r *queryResolver) Blocks(ctx context.Context, filter *model.BlockFilter) ([]*model.Block, error) {
-	if filter == nil {
-		return r.BlockFetcher.Blocks(), nil
+	cursor, err := r.BlockFetcher.Collection("blocks").Find(ctx, nil)
+	defer cursor.Close(ctx)
+	if err != nil {
+		return nil, err
+	}
+	blocks := []*model.Block{}
+	for cursor.Next(ctx) {
+		block := &model.Block{}
+		cursor.Decode(block)
+		blocks = append(blocks, block)
 	}
 
-	for _, b := range r.BlockFetcher.Blocks() {
-		if b.Number == *filter.Number {
-			return []*model.Block{
-				b,
-			}, nil
-		}
-	}
-	return nil, nil
+	return blocks, nil
 }
 
 // Query returns QueryResolver implementation.
