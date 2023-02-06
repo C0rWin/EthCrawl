@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/asm"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethdb/leveldb"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -38,6 +40,11 @@ func (f *Fetcher) Start(ctx context.Context) {
 		panic(err)
 	}
 
+	blocksDB, err := leveldb.New("ledger/blocks", 0, 0, "ethereum", false)
+	if err != nil {
+		panic(err)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -52,6 +59,12 @@ func (f *Fetcher) Start(ctx context.Context) {
 				continue
 			}
 
+			blockBytes, err := rlp.EncodeToBytes(recentBlock)
+			if err != nil {
+				fmt.Println("Failed to encode block due to, error", err)
+				os.Exit(-1)
+			}
+			blocksDB.Put(recentBlock.Hash().Bytes(), blockBytes)
 			b := &model.Block{
 				Number:       int(recentBlock.Number().Int64()),
 				Transactions: []*model.Transaction{},
@@ -141,6 +154,11 @@ func main() {
 	defer client.Close()
 
 	broker := client.Brokers()[0]
+	err = broker.Open(nil)
+	if err != nil {
+		fmt.Println("Falied to open connection to the broker, error", err)
+		os.Exit(-1)
+	}
 	connected, err := broker.Connected()
 	if err != nil {
 		panic(fmt.Sprintf("Failure to check broker connectivity, erorr %s", err))
