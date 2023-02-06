@@ -55,7 +55,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 				Transactions: []*model.Transaction{},
 			}
 
-			for _, tx := range recentBlock.Transactions() {
+			for idx, tx := range recentBlock.Transactions() {
 				t := &model.Transaction{
 					Hash:     tx.Hash().Hex(),
 					Nonce:    int(tx.Nonce()),
@@ -68,10 +68,9 @@ func (f *Fetcher) Start(ctx context.Context) {
 				if tx.To() != nil {
 					t.To = tx.To().Hex()
 				}
-				signer := types.NewEIP155Signer(tx.ChainId())
-				senderAddress, err := signer.Sender(tx)
+				fromAddr, err := client.TransactionSender(ctx, tx, recentBlock.Hash(), uint(idx))
 				if err == nil {
-					t.From = senderAddress.Hex()
+					t.From = fromAddr.Hex()
 				}
 				b.Transactions = append(b.Transactions, t)
 

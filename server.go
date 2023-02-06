@@ -48,12 +48,13 @@ func main() {
 		},
 	}))
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", handler)
+	router := http.NewServeMux()
+	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	router.Handle("/query", handler)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	srv := http.Server{
-		Handler:           handler,
+		Handler:           router,
 		Addr:              fmt.Sprint(":" + port),
 		ReadHeaderTimeout: 0,
 	}
