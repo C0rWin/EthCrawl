@@ -17,6 +17,7 @@ type Transaction {
   to: String!
   from: String!
   data: String!
+  address: String!
 }
 
 type Query {

@@ -54,6 +54,7 @@ type ComplexityRoot struct {
 	}
 
 	Transaction struct {
+		Address  func(childComplexity int) int
 		Data     func(childComplexity int) int
 		From     func(childComplexity int) int
 		Gas      func(childComplexity int) int
@@ -110,6 +111,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Blocks(childComplexity, args["filter"].(*model.BlockFilter)), true
+
+	case "Transaction.address":
+		if e.complexity.Transaction.Address == nil {
+			break
+		}
+
+		return e.complexity.Transaction.Address(childComplexity), true
 
 	case "Transaction.data":
 		if e.complexity.Transaction.Data == nil {
@@ -416,6 +424,8 @@ func (ec *executionContext) fieldContext_Block_transactions(ctx context.Context,
 				return ec.fieldContext_Transaction_from(ctx, field)
 			case "data":
 				return ec.fieldContext_Transaction_data(ctx, field)
+			case "address":
+				return ec.fieldContext_Transaction_address(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Transaction", field.Name)
 		},
@@ -997,6 +1007,50 @@ func (ec *executionContext) _Transaction_data(ctx context.Context, field graphql
 }
 
 func (ec *executionContext) fieldContext_Transaction_data(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transaction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Transaction_address(ctx context.Context, field graphql.CollectedField, obj *model.Transaction) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Transaction_address(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Address, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Transaction_address(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Transaction",
 		Field:      field,
@@ -3003,6 +3057,13 @@ func (ec *executionContext) _Transaction(ctx context.Context, sel ast.SelectionS
 		case "data":
 
 			out.Values[i] = ec._Transaction_data(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "address":
+
+			out.Values[i] = ec._Transaction_address(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++

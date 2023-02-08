@@ -87,31 +87,25 @@ func (f *Fetcher) Start(ctx context.Context) {
 				if err == nil {
 					t.From = fromAddr.Hex()
 				}
+
+				contractAddress, err := extractAddress(ctx, *client, tx.Hash())
+				if err == nil {
+					t.Address = contractAddress.Hex()
+					code, err := client.CodeAt(ctx, contractAddress, nil)
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					fmt.Println("Bytecode:", code)
+
+					contractText, err := asm.Disassemble(code)
+					if err != nil {
+						fmt.Println("ALERT: Failed to decompile contract code, error", err)
+						continue
+					}
+					fmt.Println("Smart contract:", contractText)
+				}
 				b.Transactions = append(b.Transactions, t)
-
-				receipt, err := client.TransactionReceipt(ctx, tx.Hash())
-				if err != nil {
-					fmt.Println("ALERT: failed to receive transaction receipt, err", err)
-					continue
-				}
-				if receipt == nil || receipt.ContractAddress == (common.Address{}) {
-					continue
-				}
-
-				contractAddress := receipt.ContractAddress
-				code, err := client.CodeAt(ctx, contractAddress, nil)
-				if err != nil {
-					fmt.Println(err)
-					continue
-				}
-				fmt.Println("Bytecode:", code)
-
-				contractText, err := asm.Disassemble(code)
-				if err != nil {
-					fmt.Println("ALERT: Failed to decompile contract code, error", err)
-					continue
-				}
-				fmt.Println("Smart contract:", contractText)
 			}
 			bJson, err := json.Marshal(b)
 			if err != nil {
@@ -126,6 +120,19 @@ func (f *Fetcher) Start(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func extractAddress(ctx context.Context, client ethclient.Client, txHash common.Hash) (common.Address, error) {
+	receipt, err := client.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		fmt.Println("ALERT: failed to receive transaction receipt, err", err)
+		return common.Address{}, fmt.Errorf("Cannot retreive receipt, %s", err)
+	}
+	if receipt == nil || receipt.ContractAddress == (common.Address{}) {
+		return common.Address{}, fmt.Errorf("missing(undefined) contract address")
+	}
+
+	return receipt.ContractAddress, nil
 }
 
 func main() {
