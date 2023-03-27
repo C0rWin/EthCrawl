@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"ethparser/graph/model"
 	"fmt"
+	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,8 +13,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/asm"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -34,8 +33,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 		panic(err)
 	}
 
-	headers := make(chan *types.Header)
-	sub, err := client.SubscribeNewHead(ctx, headers)
+	recentBlockNum, err := client.BlockNumber(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -45,15 +43,28 @@ func (f *Fetcher) Start(ctx context.Context) {
 		panic(err)
 	}
 
-	for {
+	retreiveTicker := time.NewTicker(time.Millisecond)
+	defer retreiveTicker.Stop()
+
+	nextBlockNum := big.NewInt(141070)
+	lastBlock, err := blocksDB.Get([]byte("lastBlock"))
+	if err == nil {
+		err = json.Unmarshal(lastBlock, nextBlockNum)
+		if err != nil {
+			panic(fmt.Sprintf("cannot Unmarshal last block number from the DB, %s", err))
+		}
+	}
+
+	for nextBlockNum != big.NewInt(int64(recentBlockNum)) {
 		select {
 		case <-ctx.Done():
 			fmt.Println("Stop fetching blocks")
 			return
-		case err := <-sub.Err():
-			panic(err)
-		case h := <-headers:
-			recentBlock, err := client.BlockByNumber(ctx, h.Number)
+		case <-retreiveTicker.C:
+			nextBlockNum := nextBlockNum.Add(nextBlockNum, big.NewInt(1))
+			n := nextBlockNum.Uint64()
+			fmt.Printf("Retreiving block number %d\n", n)
+			recentBlock, err := client.BlockByNumber(ctx, nextBlockNum)
 			if err != nil {
 				fmt.Printf("ALERT: received an error, %s\n", err)
 				continue
@@ -65,6 +76,12 @@ func (f *Fetcher) Start(ctx context.Context) {
 				os.Exit(-1)
 			}
 			blocksDB.Put(recentBlock.Hash().Bytes(), blockBytes)
+			recentBlockJSON, err := json.Marshal(recentBlock.Number())
+			if err != nil {
+				panic(fmt.Sprintf("failed to marhsal recent block numbers, %s", err))
+			}
+			blocksDB.Put([]byte("lastBlock"), recentBlockJSON)
+
 			b := &model.Block{
 				Number:       int(recentBlock.Number().Int64()),
 				Transactions: []*model.Transaction{},
@@ -91,19 +108,19 @@ func (f *Fetcher) Start(ctx context.Context) {
 				contractAddress, err := extractAddress(ctx, *client, tx.Hash())
 				if err == nil {
 					t.Address = contractAddress.Hex()
-					code, err := client.CodeAt(ctx, contractAddress, nil)
-					if err != nil {
-						fmt.Println(err)
-						continue
-					}
-					fmt.Println("Bytecode:", code)
+					// code, err := client.CodeAt(ctx, contractAddress, nil)
+					// if err != nil {
+					// 	fmt.Println(err)
+					// 	continue
+					// }
+					// fmt.Println("Bytecode:", code)
 
-					contractText, err := asm.Disassemble(code)
-					if err != nil {
-						fmt.Println("ALERT: Failed to decompile contract code, error", err)
-						continue
-					}
-					fmt.Println("Smart contract:", contractText)
+					// contractText, err := asm.Disassemble(code)
+					// if err != nil {
+					// 	fmt.Println("ALERT: Failed to decompile contract code, error", err)
+					// 	continue
+					// }
+					// fmt.Println("Smart contract:", contractText)
 				}
 				b.Transactions = append(b.Transactions, t)
 			}
