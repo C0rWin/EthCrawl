@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"ethparser/graph/model"
+	logger "ethparser/log"
 	"fmt"
 	"math/big"
 	"os"
@@ -12,21 +13,30 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/sirupsen/logrus"
 )
 
 const (
+	// KafkaInBlocksTopic is the topic name for blocks
 	KafkaInBlocksTopic = "InBlocks"
 )
 
+var (
+	// define package wide logger
+	log = logger.NewLogger("crawler", logrus.DebugLevel)
+)
+
+// Fetcher is a struct that fetches blocks from the Ethereum network
+// and sends to the Kafka topic
 type Fetcher struct {
 	NetworkURI string
 	Producer   sarama.SyncProducer
 }
 
+// Start starts the fetcher
 func (f *Fetcher) Start(ctx context.Context) {
 	client, err := ethclient.Dial(f.NetworkURI)
 	if err != nil {
@@ -105,51 +115,25 @@ func (f *Fetcher) Start(ctx context.Context) {
 					t.From = fromAddr.Hex()
 				}
 
-				contractAddress, err := extractAddress(ctx, *client, tx.Hash())
-				if err == nil {
-					t.Address = contractAddress.Hex()
-					// code, err := client.CodeAt(ctx, contractAddress, nil)
-					// if err != nil {
-					// 	fmt.Println(err)
-					// 	continue
-					// }
-					// fmt.Println("Bytecode:", code)
-
-					// contractText, err := asm.Disassemble(code)
-					// if err != nil {
-					// 	fmt.Println("ALERT: Failed to decompile contract code, error", err)
-					// 	continue
-					// }
-					// fmt.Println("Smart contract:", contractText)
+				t.Receipt, err = client.TransactionReceipt(ctx, tx.Hash())
+				if err != nil {
+					panic(fmt.Sprintf("ALERT: failed to receive transaction receipt, err %s", err))
 				}
 				b.Transactions = append(b.Transactions, t)
 			}
-			bJson, err := json.Marshal(b)
+			bJSON, err := json.Marshal(b)
 			if err != nil {
 				panic(fmt.Sprintf("Failed to marshal block to JSON, error %s", err))
 			}
 			_, _, err = f.Producer.SendMessage(&sarama.ProducerMessage{
 				Topic: KafkaInBlocksTopic,
-				Value: sarama.StringEncoder(string(bJson)),
+				Value: sarama.StringEncoder(string(bJSON)),
 			})
 			if err != nil {
 				fmt.Println("Failed to post block json content to Kafka topic, error", err)
 			}
 		}
 	}
-}
-
-func extractAddress(ctx context.Context, client ethclient.Client, txHash common.Hash) (common.Address, error) {
-	receipt, err := client.TransactionReceipt(ctx, txHash)
-	if err != nil {
-		fmt.Println("ALERT: failed to receive transaction receipt, err", err)
-		return common.Address{}, fmt.Errorf("Cannot retreive receipt, %s", err)
-	}
-	if receipt == nil || receipt.ContractAddress == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("missing(undefined) contract address")
-	}
-
-	return receipt.ContractAddress, nil
 }
 
 func main() {

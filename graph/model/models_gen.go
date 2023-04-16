@@ -2,6 +2,8 @@
 
 package model
 
+import "github.com/ethereum/go-ethereum/core/types"
+
 type Block struct {
 	Number       int            `json:"number"`
 	Transactions []*Transaction `json:"transactions"`
@@ -14,14 +16,15 @@ type BlockFilter struct {
 }
 
 type Transaction struct {
-	Hash     string `json:"hash"`
-	Nonce    int    `json:"nonce"`
-	Value    string `json:"value"`
-	GasPrice int    `json:"gas_price"`
-	Gas      int    `json:"gas"`
-	Type     int    `json:"type"`
-	To       string `json:"to"`
-	From     string `json:"from"`
-	Data     string `json:"data"`
-	Address  string `json:"address"`
+	Hash     string         `json:"hash"`
+	Nonce    int            `json:"nonce"`
+	Value    string         `json:"value"`
+	GasPrice int            `json:"gas_price"`
+	Gas      int            `json:"gas"`
+	Type     int            `json:"type"`
+	To       string         `json:"to"`
+	From     string         `json:"from"`
+	Data     string         `json:"data"`
+	Address  string         `json:"address"`
+	Receipt  *types.Receipt `json:"receipt"`
 }

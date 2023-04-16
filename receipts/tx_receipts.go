@@ -1,5 +1,7 @@
 package main
 
+// import logrus "github.com/sirupsen/logrus"
+
 import (
 	"context"
 	"ethparser/graph/model"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,12 +23,22 @@ import (
 
 func main() {
 
+	// setup logrus
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.DebugLevel)
+
+	// setup logger name
+	log.WithFields(log.Fields{
+		"logger": "tx_receipts",
+	})
+
 	// Need to get parameters:
 	//
 	// 1. API ID to query Ethereum Client
 	// 2. MongoDB endpoint
 	if len(os.Args) != 3 {
-		fmt.Println("Wrong amount of parameters")
+		log.Error("Wrong amount of parameters")
 		os.Exit(-1)
 	}
 
@@ -48,7 +61,7 @@ func main() {
 
 	mongoClient, err := mongo.NewClient(options.Client().ApplyURI(mongoURI))
 	if err != nil {
-		fmt.Println("Erorr connecting to mongodb, error = ", err)
+		log.Error("Error connecting to mongodb, error = ", err)
 		os.Exit(-1)
 	}
 
@@ -57,14 +70,14 @@ func main() {
 
 	err = mongoClient.Connect(ctxTimeout)
 	if err != nil {
-		fmt.Println("Error connectiong to mongo database, error", err)
+		log.Error("Error connecting to mongodb, error = ", err)
 		os.Exit(-1)
 	}
 
 	// check connection with the leader
 	err = mongoClient.Ping(ctxTimeout, readpref.Primary())
 	if err != nil {
-		fmt.Println("Error sending ping to the mongo db server, error", err)
+		log.Error("Error sending ping to the mongo db server, error", err)
 		os.Exit(-1)
 	}
 
@@ -72,7 +85,7 @@ func main() {
 
 	blocksCursor, err := blocks.Find(ctx, bson.M{})
 	if err != nil {
-		fmt.Println("Failed to create cursor to listen for blocks, error", err)
+		log.Error("Failed to create cursor to listen for blocks, error", err)
 		os.Exit(-1)
 	}
 	defer blocksCursor.Close(ctx)
@@ -84,32 +97,45 @@ func main() {
 		panic(err)
 	}
 
-	for blocksCursor.Next(ctx) {
-		block := &model.Block{}
-		if err := blocksCursor.Decode(block); err != nil {
-			fmt.Println("Failed to read block data from stream, error", err)
-			os.Exit(-1)
-		}
-		for _, tx := range block.Transactions {
-			// use tx hash value to retreive transaction receipt from
-			// the network
-			receipt, err := clientEth.TransactionReceipt(ctx, common.HexToHash(tx.Hash))
-			if err != nil {
-				fmt.Println("ALERT: failed to receive transaction receipt, err", err)
+	ch := make(chan *model.Block)
+	defer close(ch)
+
+	// start goroutine to read blocks from the stream
+	go func() {
+		for blocksCursor.Next(ctx) {
+			block := &model.Block{}
+			if err := blocksCursor.Decode(block); err != nil {
+				log.Error("Failed to decode block data from stream, error", err)
 				os.Exit(-1)
 			}
+			ch <- block
+		}
+	}()
 
-			receipt.BlockNumber = big.NewInt(int64(block.Number))
-			_, err = receipts.InsertOne(ctx, receipt)
-			if err != nil {
-				fmt.Println("Error inserting receipt into error, ", err)
-				os.Exit(-1)
+	// reading transactions from the channel and exit if context
+	// was cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Context is done, exiting")
+			return
+		case block := <-ch:
+			for _, tx := range block.Transactions {
+				// use tx hash value to retreive transaction receipt from
+				// the network
+				receipt, err := clientEth.TransactionReceipt(ctx, common.HexToHash(tx.Hash))
+				if err != nil {
+					log.Error("Failed to receive transaction receipt, err", err)
+					os.Exit(-1)
+				}
+
+				receipt.BlockNumber = big.NewInt(int64(block.Number))
+				_, err = receipts.InsertOne(ctx, receipt)
+				if err != nil {
+					log.Error("Failed to insert receipt into database, err", err)
+					os.Exit(-1)
+				}
 			}
 		}
-	}
-
-	if err := blocksCursor.Err(); err != nil {
-		fmt.Println("Received error at block stream, the error is ", err)
-		os.Exit(-1)
 	}
 }
