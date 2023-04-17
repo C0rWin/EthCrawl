@@ -2,8 +2,6 @@
 
 package model
 
-import "github.com/ethereum/go-ethereum/core/types"
-
 type Block struct {
 	Number       int            `json:"number"`
 	Transactions []*Transaction `json:"transactions"`
@@ -15,16 +13,43 @@ type BlockFilter struct {
 	Number *int           `json:"number"`
 }
 
+type Log struct {
+	Address          string   `json:"address"`
+	Topics           []string `json:"topics"`
+	Data             string   `json:"data"`
+	BlockHash        string   `json:"block_hash"`
+	BlockNumber      int      `json:"block_number"`
+	TransactionHash  string   `json:"transaction_hash"`
+	TransactionIndex int      `json:"transaction_index"`
+	LogIndex         int      `json:"log_index"`
+	Removed          bool     `json:"removed"`
+}
+
+type Receipt struct {
+	Type              int    `json:"type"`
+	PostState         string `json:"post_state"`
+	Status            int    `json:"status"`
+	CumulativeGasUsed int    `json:"cumulative_gas_used"`
+	Bloom             string `json:"bloom"`
+	Logs              []*Log `json:"logs"`
+	TxHash            string `json:"tx_hash"`
+	ContractAddress   string `json:"contract_address"`
+	GasUsed           int    `json:"gas_used"`
+	BlockHash         string `json:"block_hash"`
+	BlockNumber       int    `json:"block_number"`
+	TransactionIndex  int    `json:"transaction_index"`
+}
+
 type Transaction struct {
-	Hash     string         `json:"hash"`
-	Nonce    int            `json:"nonce"`
-	Value    string         `json:"value"`
-	GasPrice int            `json:"gas_price"`
-	Gas      int            `json:"gas"`
-	Type     int            `json:"type"`
-	To       string         `json:"to"`
-	From     string         `json:"from"`
-	Data     string         `json:"data"`
-	Address  string         `json:"address"`
-	Receipt  *types.Receipt `json:"receipt"`
+	Hash     string   `json:"hash"`
+	Nonce    int      `json:"nonce"`
+	Value    string   `json:"value"`
+	GasPrice int      `json:"gas_price"`
+	Gas      int      `json:"gas"`
+	Type     int      `json:"type"`
+	To       string   `json:"to"`
+	From     string   `json:"from"`
+	Data     string   `json:"data"`
+	Address  string   `json:"address"`
+	Receipt  *Receipt `json:"receipt"`
 }

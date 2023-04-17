@@ -18,6 +18,34 @@ type Transaction {
   from: String!
   data: String!
   address: String!
+  receipt: Receipt!
+}
+
+type Receipt {
+  type: Int!
+  post_state: String!
+  status: Int!
+  cumulative_gas_used: Int!
+  bloom: String!
+  logs: [Log!]!
+  tx_hash: String!
+  contract_address: String!
+  gas_used: Int!
+  block_hash: String!
+  block_number: Int!
+  transaction_index: Int!
+}
+
+type Log {
+  address: String!
+  topics: [String!]!
+  data: String!
+  block_hash: String!
+  block_number: Int!
+  transaction_hash: String!
+  transaction_index: Int!
+  log_index: Int!
+  removed: Boolean!
 }
 
 type Query {

@@ -56,7 +56,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 	retreiveTicker := time.NewTicker(time.Millisecond)
 	defer retreiveTicker.Stop()
 
-	nextBlockNum := big.NewInt(141070)
+	nextBlockNum := big.NewInt(0)
 	lastBlock, err := blocksDB.Get([]byte("lastBlock"))
 	if err == nil {
 		err = json.Unmarshal(lastBlock, nextBlockNum)
@@ -97,6 +97,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 				Transactions: []*model.Transaction{},
 			}
 
+			fmt.Printf("Block number %d has %d transactions\n", recentBlock.Number().Int64(), len(recentBlock.Transactions()))
 			for idx, tx := range recentBlock.Transactions() {
 				t := &model.Transaction{
 					Hash:     tx.Hash().Hex(),
@@ -115,10 +116,44 @@ func (f *Fetcher) Start(ctx context.Context) {
 					t.From = fromAddr.Hex()
 				}
 
-				t.Receipt, err = client.TransactionReceipt(ctx, tx.Hash())
+				// retreive transaction receipt
+				receipt, err := client.TransactionReceipt(ctx, tx.Hash())
 				if err != nil {
 					panic(fmt.Sprintf("ALERT: failed to receive transaction receipt, err %s", err))
 				}
+
+				// copy receipt to the transaction
+				t.Receipt = &model.Receipt{
+					Type:              int(receipt.Type),
+					CumulativeGasUsed: int(receipt.CumulativeGasUsed),
+					Logs:              []*model.Log{},
+					TxHash:            receipt.TxHash.Hex(),
+					ContractAddress:   receipt.ContractAddress.Hex(),
+					GasUsed:           int(receipt.GasUsed),
+					BlockHash:         receipt.BlockHash.Hex(),
+					BlockNumber:       int(receipt.BlockNumber.Int64()),
+					TransactionIndex:  int(receipt.TransactionIndex),
+				}
+				// add all log events
+				for _, log := range receipt.Logs {
+					l := &model.Log{
+						Address:          log.Address.Hex(),
+						Topics:           []string{},
+						Data:             string(log.Data),
+						BlockHash:        log.BlockHash.Hex(),
+						BlockNumber:      int(log.BlockNumber),
+						TransactionHash:  log.TxHash.Hex(),
+						TransactionIndex: int(log.TxIndex),
+						LogIndex:         int(log.Index),
+						Removed:          log.Removed,
+					}
+					// copy topics
+					for _, topic := range log.Topics {
+						l.Topics = append(l.Topics, topic.Hex())
+					}
+					t.Receipt.Logs = append(t.Receipt.Logs, l)
+				}
+
 				b.Transactions = append(b.Transactions, t)
 			}
 			bJSON, err := json.Marshal(b)
@@ -129,6 +164,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 				Topic: KafkaInBlocksTopic,
 				Value: sarama.StringEncoder(string(bJSON)),
 			})
+			fmt.Println("Sent block to Kafka topic", string(bJSON))
 			if err != nil {
 				fmt.Println("Failed to post block json content to Kafka topic, error", err)
 			}
