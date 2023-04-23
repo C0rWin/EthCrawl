@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -90,70 +91,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 			}
 			blocksDB.Put([]byte("lastBlock"), recentBlockJSON)
 
-			b := &model.Block{
-				Number:       int(recentBlock.Number().Int64()),
-				Transactions: []*model.Transaction{},
-			}
-
-			log.Debugf("Block number %d has %d transactions\n", recentBlock.Number().Int64(), len(recentBlock.Transactions()))
-			for idx, tx := range recentBlock.Transactions() {
-				t := &model.Transaction{
-					Hash:     tx.Hash().Hex(),
-					Nonce:    int(tx.Nonce()),
-					Value:    tx.Value().String(),
-					GasPrice: int(tx.GasPrice().Int64()),
-					Gas:      int(tx.Gas()),
-					Type:     int(tx.Type()),
-					Data:     string(tx.Data()),
-				}
-				if tx.To() != nil {
-					t.To = tx.To().Hex()
-				}
-				fromAddr, err := client.TransactionSender(ctx, tx, recentBlock.Hash(), uint(idx))
-				if err == nil {
-					t.From = fromAddr.Hex()
-				}
-
-				// retreive transaction receipt
-				receipt, err := client.TransactionReceipt(ctx, tx.Hash())
-				if err != nil {
-					panic(fmt.Sprintf("ALERT: failed to receive transaction receipt, err %s", err))
-				}
-
-				// copy receipt to the transaction
-				t.Receipt = &model.Receipt{
-					Type:              int(receipt.Type),
-					CumulativeGasUsed: int(receipt.CumulativeGasUsed),
-					Logs:              []*model.Log{},
-					TxHash:            receipt.TxHash.Hex(),
-					ContractAddress:   receipt.ContractAddress.Hex(),
-					GasUsed:           int(receipt.GasUsed),
-					BlockHash:         receipt.BlockHash.Hex(),
-					BlockNumber:       int(receipt.BlockNumber.Int64()),
-					TransactionIndex:  int(receipt.TransactionIndex),
-				}
-				// add all log events
-				for _, log := range receipt.Logs {
-					l := &model.Log{
-						Address:          log.Address.Hex(),
-						Topics:           []string{},
-						Data:             string(log.Data),
-						BlockHash:        log.BlockHash.Hex(),
-						BlockNumber:      int(log.BlockNumber),
-						TransactionHash:  log.TxHash.Hex(),
-						TransactionIndex: int(log.TxIndex),
-						LogIndex:         int(log.Index),
-						Removed:          log.Removed,
-					}
-					// copy topics
-					for _, topic := range log.Topics {
-						l.Topics = append(l.Topics, topic.Hex())
-					}
-					t.Receipt.Logs = append(t.Receipt.Logs, l)
-				}
-
-				b.Transactions = append(b.Transactions, t)
-			}
+			b := DumpBlock(ctx, recentBlock, client)
 			bJSON, err := json.Marshal(b)
 			if err != nil {
 				panic(fmt.Sprintf("Failed to marshal block to JSON, error %s", err))
@@ -168,4 +106,74 @@ func (f *Fetcher) Start(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// DumpBlock creates a new block
+func DumpBlock(ctx context.Context, block *types.Block, client *ethclient.Client) *model.Block {
+	b := &model.Block{
+		Number:       int(block.Number().Int64()),
+		Transactions: []*model.Transaction{},
+	}
+
+	log.Debugf("Block number %d has %d transactions\n", block.Number().Int64(), len(block.Transactions()))
+	for idx, tx := range block.Transactions() {
+		t := &model.Transaction{
+			Hash:     tx.Hash().Hex(),
+			Nonce:    int(tx.Nonce()),
+			Value:    tx.Value().String(),
+			GasPrice: int(tx.GasPrice().Int64()),
+			Gas:      int(tx.Gas()),
+			Type:     int(tx.Type()),
+			Data:     string(tx.Data()),
+		}
+		if tx.To() != nil {
+			t.To = tx.To().Hex()
+		}
+		fromAddr, err := client.TransactionSender(ctx, tx, block.Hash(), uint(idx))
+		if err == nil {
+			t.From = fromAddr.Hex()
+		}
+
+		// retreive transaction receipt
+		receipt, err := client.TransactionReceipt(ctx, tx.Hash())
+		if err != nil {
+			panic(fmt.Sprintf("ALERT: failed to receive transaction receipt, err %s", err))
+		}
+
+		// copy receipt to the transaction
+		t.Receipt = &model.Receipt{
+			Type:              int(receipt.Type),
+			CumulativeGasUsed: int(receipt.CumulativeGasUsed),
+			Logs:              []*model.Log{},
+			TxHash:            receipt.TxHash.Hex(),
+			ContractAddress:   receipt.ContractAddress.Hex(),
+			GasUsed:           int(receipt.GasUsed),
+			BlockHash:         receipt.BlockHash.Hex(),
+			BlockNumber:       int(receipt.BlockNumber.Int64()),
+			TransactionIndex:  int(receipt.TransactionIndex),
+		}
+		// add all log events
+		for _, log := range receipt.Logs {
+			l := &model.Log{
+				Address:          log.Address.Hex(),
+				Topics:           []string{},
+				Data:             string(log.Data),
+				BlockHash:        log.BlockHash.Hex(),
+				BlockNumber:      int(log.BlockNumber),
+				TransactionHash:  log.TxHash.Hex(),
+				TransactionIndex: int(log.TxIndex),
+				LogIndex:         int(log.Index),
+				Removed:          log.Removed,
+			}
+			// copy topics
+			for _, topic := range log.Topics {
+				l.Topics = append(l.Topics, topic.Hex())
+			}
+			t.Receipt.Logs = append(t.Receipt.Logs, l)
+		}
+
+		b.Transactions = append(b.Transactions, t)
+	}
+
+	return b
 }
