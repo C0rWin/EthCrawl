@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 )
 
@@ -49,9 +50,14 @@ func main() {
 			}
 			defer producer.Close()
 
+			client, err := ethclient.Dial(fmt.Sprintf("wss://mainnet.infura.io/ws/v3/%s", infuraAPIKey))
+			if err != nil {
+				panic(err)
+			}
+
 			fetcher := &crawler.Fetcher{
-				NetworkURI: fmt.Sprintf("wss://mainnet.infura.io/ws/v3/%s", infuraAPIKey),
-				Producer:   producer,
+				Client:   client,
+				Producer: producer,
 			}
 
 			go fetcher.Start(cmd.Context())

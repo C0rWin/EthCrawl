@@ -31,18 +31,13 @@ var (
 // Fetcher is a struct that fetches blocks from the Ethereum network
 // and sends to the Kafka topic
 type Fetcher struct {
-	NetworkURI string
-	Producer   sarama.SyncProducer
+	Producer sarama.SyncProducer
+	Client   *ethclient.Client
 }
 
 // Start starts the fetcher
 func (f *Fetcher) Start(ctx context.Context) {
-	client, err := ethclient.Dial(f.NetworkURI)
-	if err != nil {
-		panic(err)
-	}
-
-	recentBlockNum, err := client.BlockNumber(ctx)
+	recentBlockNum, err := f.Client.BlockNumber(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +68,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 			nextBlockNum := nextBlockNum.Add(nextBlockNum, big.NewInt(1))
 			n := nextBlockNum.Uint64()
 			log.Debugf("Retreiving block number %d\n", n)
-			recentBlock, err := client.BlockByNumber(ctx, nextBlockNum)
+			recentBlock, err := f.Client.BlockByNumber(ctx, nextBlockNum)
 			if err != nil {
 				fmt.Printf("ALERT: received an error, %s\n", err)
 				continue
@@ -91,7 +86,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 			}
 			blocksDB.Put([]byte("lastBlock"), recentBlockJSON)
 
-			b := DumpBlock(ctx, recentBlock, client)
+			b := f.DumpBlock(ctx, recentBlock)
 			bJSON, err := json.Marshal(b)
 			if err != nil {
 				panic(fmt.Sprintf("Failed to marshal block to JSON, error %s", err))
@@ -109,7 +104,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 }
 
 // DumpBlock creates a new block
-func DumpBlock(ctx context.Context, block *types.Block, client *ethclient.Client) *model.Block {
+func (f *Fetcher) DumpBlock(ctx context.Context, block *types.Block) *model.Block {
 	b := &model.Block{
 		Number:       int(block.Number().Int64()),
 		Transactions: []*model.Transaction{},
@@ -129,13 +124,13 @@ func DumpBlock(ctx context.Context, block *types.Block, client *ethclient.Client
 		if tx.To() != nil {
 			t.To = tx.To().Hex()
 		}
-		fromAddr, err := client.TransactionSender(ctx, tx, block.Hash(), uint(idx))
+		fromAddr, err := f.Client.TransactionSender(ctx, tx, block.Hash(), uint(idx))
 		if err == nil {
 			t.From = fromAddr.Hex()
 		}
 
 		// retreive transaction receipt
-		receipt, err := client.TransactionReceipt(ctx, tx.Hash())
+		receipt, err := f.Client.TransactionReceipt(ctx, tx.Hash())
 		if err != nil {
 			panic(fmt.Sprintf("ALERT: failed to receive transaction receipt, err %s", err))
 		}
